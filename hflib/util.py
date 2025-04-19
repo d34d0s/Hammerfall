@@ -1,4 +1,4 @@
-from .globs import os, math
+from hflib.globs import os, math
 
 sine_wave_value = lambda A, B, t, C, D: int(A * math.sin((B * t) + C) + D)
 """

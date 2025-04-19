@@ -14,7 +14,7 @@ class ConfigureProc(hflib.HFProc):
         self.game = game
 
     def callback(self, data):
-        self.game.player = hflib.HFGameObject(
+        self.game.player = hflib.game.HFObject(
             size=[32, 32], color=[255, 255, 255],
             location=[64, 64], mass=500
         )
@@ -40,6 +40,10 @@ class ConfigureProc(hflib.HFProc):
         # self.game.map.export_data("hfmap.txt")
 
         self.game.renderer.set_flag(self.game.renderer.FLAGS.SHOW_CAMERA)
+
+        self.game.partition = hflib.game.HFStaticPartition([10, 10], 32)
+        self.game.partition.set_cell(self.game.player)
+        self.game.partition.set_cell(self.game.map.tiles)
         
 class UpdateProc(hflib.HFProc):
     def __init__(self, game) -> None:
@@ -70,7 +74,9 @@ class UpdateProc(hflib.HFProc):
         if self.game.events.mouse_wheel_up: self.game.camera.mod_viewport(-2)
         if self.game.events.mouse_wheel_down: self.game.camera.mod_viewport(2)
 
+        self.game.partition.rem_cell(self.game.player)
         self.game.player.update(self.game.map.get_region([1, 1], self.game.player.center()), self.game.clock.delta)
+        self.game.partition.set_cell(self.game.player)
 
         self.game.camera.center_on(self.game.player.size, self.game.player.location)
         self.game.camera.update(self.game.clock.delta)
@@ -83,8 +89,12 @@ class RenderProc(hflib.HFProc):
         self.game = game
 
         def post_render():
+            self.game.partition.debug_render(self.game.renderer, self.game.player.center())
+            # either of these spatial queries works :)
             [self.game.window.draw_rect(t.size, t.location, [255, 0, 0], 1)
-            for t in self.game.map.get_region([1, 1], self.game.player.center())]
+            for cell in self.game.partition.get_region([1, 1], self.game.player.center()) for t in cell]
+            # for t in self.game.map.get_region([1, 1], self.game.player.center())]
+
         self.game.renderer.post_render = post_render
 
     def callback(self, data):

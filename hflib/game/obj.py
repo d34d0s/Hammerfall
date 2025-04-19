@@ -1,9 +1,10 @@
-from .globs import pg
-from .util import damp_lin
+from hflib.globs import pg
+from hflib.util import damp_lin
 
-class HFGameObject:
+class HFObject:
     def __init__(self, size: list[int]=[32, 32], color: list[int]=[255, 255, 255], location: list[int]=[0, 0], mass: float=100, image_offset: list[int]=[0, 0]) -> None:
         self.id = "obj"
+        self.cell = 0
         self.mass = mass
         self.size = size
         self.color = color

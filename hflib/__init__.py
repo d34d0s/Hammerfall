@@ -1,5 +1,4 @@
 from hflib.proc import HFProc
-from hflib.obj import HFGameObject
 from hflib.event import HFEventManager
 from hflib.input import HFKeyboard, HFMouse
 from hflib.rsrc import HFClock, HFWindow, HFCamera, HFRenderer, HFAssetManager, HFTilemap

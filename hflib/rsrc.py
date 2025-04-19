@@ -1,6 +1,6 @@
-from .globs import re, os, pg, time
-from .obj import HFGameObject
-from .util import damp_lin
+from hflib.globs import re, os, pg, time
+from hflib.util import damp_lin
+from hflib.game.obj import HFObject
 
 # ------------------------------------------------------------ #
 class HFClock:
@@ -44,8 +44,13 @@ class HFWindow:
 
         self.configure()
 
-    def set_title(self, title: str) -> None: self.title = title
-    def set_icon(self, icon: pg.Surface) -> None: self.icon = icon
+    def set_title(self, title: str) -> None:
+        self.title = title
+        self.configure()
+
+    def set_icon(self, icon: pg.Surface) -> None:
+        self.icon = icon
+        self.configure()
 
     def configure(self) -> None:
         self.display = pg.Surface(self.display_size)
@@ -188,8 +193,10 @@ class HFAssetManager:
 # ------------------------------------------------------------ #
 class HFTilemap:
     def __init__(self, size: list[int], tilesize: int=32) -> None:
-        self.size = size
-        self.tilesize = tilesize
+        self.size = size                                        # in tiles
+        self.width = size[0]                                    # in tiles
+        self.height = size[1]                                   # in tiles
+        self.tilesize = tilesize                                # in pixels
         self.data = [None for _ in range(size[0] * size[1])]
         self.tiles = [None for _ in range(size[0] * size[1])]
 
@@ -226,7 +233,7 @@ class HFTilemap:
             for y in range(self.size[1]):
                 self.set_data([x, y], data[y * self.size[0] + x])
     
-    def get_tile(self, location: list[int]) -> HFGameObject|None:
+    def get_tile(self, location: list[int]) -> HFObject|None:
         mapx = location[0] // self.tilesize
         mapy = location[1] // self.tilesize
         if mapx < 0 or mapy < 0 or mapx > self.size[0] or mapy > self.size[1]: return None
@@ -242,7 +249,7 @@ class HFTilemap:
                 region.append([x, y])
         return region
 
-    def get_region(self, size:list[int], location:list[int]) -> list[HFGameObject]|None:
+    def get_region(self, size:list[int], location:list[int]) -> list[HFObject]|None:
         region = self._generate_region(size, location)
         if not region: return None
         tiles = []
@@ -259,7 +266,7 @@ class HFTilemap:
             for y in range(self.size[1]):
                 data_tile = self.data[y * self.size[0] + x]
                 if data_tile != 0 and data_tile != None:
-                    tile = HFGameObject(
+                    tile = HFObject(
                         size=[self.tilesize, self.tilesize], color=[255, 255, 255],
                         location=[x * self.tilesize, y * self.tilesize]
                     )
@@ -371,20 +378,6 @@ class HFRenderer:
         self.draw_calls = 0
         self._draw_calls = []  # draw_call layout : [surface, location]
 
-        self.draw_line = lambda start, end, color, width: pg.draw.line(
-            self.target, color,
-            [start[0] - self.camera.location[0], start[1] - self.camera.location[1]],
-            [end[0] - self.camera.location[0], end[1] - self.camera.location[1]], width=width
-        )
-
-        self.draw_rect = lambda size, location, color, width: pg.draw.rect(self.target, color, pg.Rect(
-            [location[0] - self.camera.location[0], location[1] - self.camera.last_location[1]], size), width=width)
-        
-        self.draw_circle = lambda center, radius, color, width: pg.draw.circle(
-            self.target, color, [*map(int, [center[0] - self.camera.location[0], center[1] - self.camera.location[1]])], radius, width)
-        
-        self.blit_rect = lambda rect, color, width: self.draw_rect(rect.size, rect.topleft, color, width)
-
     def set_flag(self, flag: int) -> None:
         """Enables a rendering flag."""
         self.flags |= flag
@@ -440,13 +433,12 @@ class HFRenderer:
         self.draw_calls = 0
         self.post_render()
 
+        if (self.flags & self.FLAGS.SHOW_CAMERA):
+            self.window.blit_rect(self.camera.get_viewport(), [255, 255, 255], 1)
+            self.window.blit_rect(self.camera.get_center([10, 10]), [0, 255, 0], 1)
+        
         # apply camera transformations at the render-target level (no per-object transformations)
         self.target.blit(self.window.display, [-self.camera.location[0], -self.camera.location[1]])
-
-        if (self.flags & self.FLAGS.SHOW_CAMERA):
-            self.blit_rect(self.camera.get_viewport(), [255, 255, 255], 1)
-            self.blit_rect(self.camera.get_center([10, 10]), [0, 255, 0], 1)
-        
         self.window.window.blit(
             pg.transform.scale(self.target, self.window.size),
             [0, 0]
