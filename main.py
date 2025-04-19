@@ -1,4 +1,4 @@
-from globs import hflib
+from globs import r3frame
 from procs import LoadAssetsProc, ConfigureProc, UpdateProc, RenderProc
 
 class THEGAME:
@@ -17,15 +17,15 @@ class THEGAME:
         self.state &= ~flag
 
     def init(self) -> None:
-        self.clock: hflib.HFClock = hflib.HFClock()
-        self.assets: hflib.HFAssetManager = hflib.HFAssetManager()
-        self.events: hflib.HFEventManager = hflib.HFEventManager()
-        self.window: hflib.HFWindow = hflib.HFWindow(
+        self.clock: r3frame.app.Clock = r3frame.app.Clock()
+        self.assets: r3frame.app.AssetManager = r3frame.app.AssetManager()
+        self.events: r3frame.app.EventManager = r3frame.app.EventManager()
+        self.window: r3frame.app.Window = r3frame.app.Window(
             [800, 600], [32*50, 32*50],
             [10, 10, 10]
         )
-        self.camera: hflib.HFCamera = hflib.HFCamera(self.window)
-        self.renderer: hflib.HFRenderer = hflib.HFRenderer(self.camera)
+        self.camera: r3frame.app.Camera = r3frame.app.Camera(self.window)
+        self.renderer: r3frame.app.Renderer = r3frame.app.Renderer(self.camera)
 
         LoadAssetsProc(self).callback(None)
         ConfigureProc(self).callback(None)
