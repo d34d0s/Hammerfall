@@ -29,17 +29,24 @@ class HFInterface:
         self.font: pg.Font = pg.Font(font_path, text_size)
 
         self.show_name = True
+        self.display = pg.Surface(size)
 
-    def set_button(self, key: str, button: HFButton) -> None: self.buttons[key] = button
+    def set_button(self, key: str, button: HFButton) -> None:
+        self.buttons[key] = button
+    
     def get_button(self, key: str) -> HFButton|None:
         return self.buttons.get(key, None)
+    
     def rem_button(self, key: str) -> HFButton|None:
         if self.get_button(key) is not None:
             del self.buttons[key]
 
-    def set_tooltip(self, key: str, tooltip:HFTooltip) -> None: self.tooltips[key] = tooltip
+    def set_tooltip(self, key: str, tooltip:HFTooltip) -> None:
+        self.tooltips[key] = tooltip
+    
     def get_tooltip(self, key: str) -> HFTooltip|None:
         return self.tooltips.get(key, None)
+    
     def rem_tooltip(self, key: str) -> HFTooltip|None:
         if self.get_tooltip(key) is not None:
             del self.tooltips[key]

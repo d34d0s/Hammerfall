@@ -442,5 +442,5 @@ class HFRenderer:
         self.window.window.blit(
             pg.transform.scale(self.target, self.window.size),
             [0, 0]
-        ); self.window.update()
+        )
 # ------------------------------------------------------------ #

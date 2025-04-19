@@ -1,4 +1,4 @@
-from globs import hflib, HF_GAME_STATE
+from globs import hflib
 from procs import LoadAssetsProc, ConfigureProc, UpdateProc, RenderProc
 
 class THEGAME:
@@ -30,12 +30,10 @@ class THEGAME:
         LoadAssetsProc(self).callback(None)
         ConfigureProc(self).callback(None)
 
-        self.set_state(HF_GAME_STATE.RUNNING)
-
     def run(self) -> None:
         update = UpdateProc(self)
         render = RenderProc(self)
-        while self.get_state(HF_GAME_STATE.RUNNING):
+        while not self.events.quit:
             update.callback(None)
             render.callback(None)
         else:

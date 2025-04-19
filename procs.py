@@ -1,4 +1,4 @@
-from globs import hflib, HF_GAME_STATE
+from globs import hflib
 
 class LoadAssetsProc(hflib.HFProc):
     def __init__(self, game) -> None:
@@ -53,21 +53,15 @@ class UpdateProc(hflib.HFProc):
     def callback(self, data) -> None:
         self.game.clock.update()
         self.game.events.update()
-        # self.game.window.clear()
+
+        self.game.interface.set_text_field("FPS", f"{self.game.clock.FPS:0.1f}")
 
         if self.game.events.key_pressed(hflib.HFKeyboard.Escape):
-            self.game.rem_state(HF_GAME_STATE.RUNNING)
+            self.game.events.quit = True
 
-        if self.game.events.key_held(hflib.HFKeyboard.A):
-            self.game.player.set_velocity(vx=-100)
-        if self.game.events.key_held(hflib.HFKeyboard.D):
-            self.game.player.set_velocity(vx=100)
+        self.game.player.set_velocity(vx=100 * (self.game.events.key_held(hflib.HFKeyboard.D) - self.game.events.key_held(hflib.HFKeyboard.A)))
+        self.game.player.set_velocity(vy=100 * (self.game.events.key_held(hflib.HFKeyboard.S) - self.game.events.key_held(hflib.HFKeyboard.W)))
         
-        if self.game.events.key_held(hflib.HFKeyboard.W):
-            self.game.player.set_velocity(vy=-100)
-        if self.game.events.key_held(hflib.HFKeyboard.S):
-            self.game.player.set_velocity(vy=100)
-
         if self.game.events.key_pressed(hflib.HFKeyboard.Space):
             self.game.player.set_velocity(vy=-500)
 
@@ -81,15 +75,16 @@ class UpdateProc(hflib.HFProc):
         self.game.camera.center_on(self.game.player.size, self.game.player.location)
         self.game.camera.update(self.game.clock.delta)
         self.game.clock.rest()
-        return True
 
 class RenderProc(hflib.HFProc):
     def __init__(self, game) -> None:
         super().__init__(0, "render")
         self.game = game
 
+        self.game.interface = hflib.ui.HFInterface("debug", self.game.window, [100, 100], [0, 0], "assets\\fonts\\megamax.ttf", title_color=[100, 100, 100], text_color=[0, 255, 0])
+
         def post_render():
-            self.game.partition.debug_render(self.game.renderer, self.game.player.center())
+            # self.game.partition.debug_render(self.game.renderer, self.game.player.center())
             # either of these spatial queries works :)
             [self.game.window.draw_rect(t.size, t.location, [255, 0, 0], 1)
             for cell in self.game.partition.get_region([1, 1], self.game.player.center()) for t in cell]
@@ -99,4 +94,7 @@ class RenderProc(hflib.HFProc):
 
     def callback(self, data):
         [self.game.renderer.draw_call(obj.image, obj.location) for obj in [self.game.player, *self.game.map.tiles] if obj]
+        self.game.interface.update(self.game.events)
         self.game.renderer.render()
+        self.game.interface.render()
+        self.game.window.update()
