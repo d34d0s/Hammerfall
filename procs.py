@@ -38,6 +38,8 @@ class ConfigureProc(hflib.HFProc):
         #     1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         # ])
         # self.game.map.export_data("hfmap.txt")
+
+        self.game.renderer.set_flag(self.game.renderer.FLAGS.SHOW_CAMERA)
         
 class UpdateProc(hflib.HFProc):
     def __init__(self, game) -> None:
@@ -53,22 +55,17 @@ class UpdateProc(hflib.HFProc):
             self.game.rem_state(HF_GAME_STATE.RUNNING)
 
         if self.game.events.key_held(hflib.HFKeyboard.A):
-            self.game.player.move(0)
             self.game.player.set_velocity(vx=-100)
-        else: self.game.player.stop(0)
         if self.game.events.key_held(hflib.HFKeyboard.D):
-            self.game.player.move(1)
             self.game.player.set_velocity(vx=100)
-        else: self.game.player.stop(1)
         
         if self.game.events.key_held(hflib.HFKeyboard.W):
-            self.game.player.move(2)
             self.game.player.set_velocity(vy=-100)
-        else: self.game.player.stop(2)
         if self.game.events.key_held(hflib.HFKeyboard.S):
-            self.game.player.move(3)
             self.game.player.set_velocity(vy=100)
-        else: self.game.player.stop(3)
+
+        if self.game.events.key_pressed(hflib.HFKeyboard.Space):
+            self.game.player.set_velocity(vy=-500)
 
         if self.game.events.mouse_wheel_up: self.game.camera.mod_viewport(-2)
         if self.game.events.mouse_wheel_down: self.game.camera.mod_viewport(2)
@@ -86,10 +83,10 @@ class RenderProc(hflib.HFProc):
         self.game = game
 
         def post_render():
-            [self.game.renderer.draw_rect(t.size, t.location, [255, 0, 0], 1)
+            [self.game.window.draw_rect(t.size, t.location, [255, 0, 0], 1)
             for t in self.game.map.get_region([1, 1], self.game.player.center())]
         self.game.renderer.post_render = post_render
 
     def callback(self, data):
         [self.game.renderer.draw_call(obj.image, obj.location) for obj in [self.game.player, *self.game.map.tiles] if obj]
-        self.game.renderer.flush()
+        self.game.renderer.render()

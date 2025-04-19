@@ -21,7 +21,7 @@ class THEGAME:
         self.assets: hflib.HFAssetManager = hflib.HFAssetManager()
         self.events: hflib.HFEventManager = hflib.HFEventManager()
         self.window: hflib.HFWindow = hflib.HFWindow(
-            [800, 600], [1600, 1200],
+            [800, 600], [32*50, 32*50],
             [10, 10, 10]
         )
         self.camera: hflib.HFCamera = hflib.HFCamera(self.window)

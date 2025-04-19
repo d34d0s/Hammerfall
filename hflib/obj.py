@@ -10,7 +10,7 @@ class HFGameObject:
         self.velocity = [0, 0]
         self.minvelocity = 5.0
         self.location = location
-        self.movement = [0, 0, 0, 0]    # l, r, u, d
+        self.collisions = [0, 0, 0, 0]   # l, r, u, d
 
         self._image = pg.Surface(size)
         self._image.fill(color)
@@ -42,19 +42,11 @@ class HFGameObject:
         self.velocity[0] = vx if vx else self.velocity[0]
         self.velocity[1] = vy if vy else self.velocity[1]
 
-    def move(self, direction:int) -> None:
-        if direction < 0 or direction > 3: return
-        self.movement[direction] = 1
-
-    def stop(self, direction:int) -> None:
-        if direction < 0 or direction > 3: return
-        self.movement[direction] = 0
-
     def update(self, collidables: list, delta_time: float) -> None:
-        collisions = [0, 0, 0, 0]
+        self.collisions = [0, 0, 0, 0]   # l, r, u, d
         transform = [
-            (self.movement[1] - self.movement[0]) + self.velocity[0],
-            (self.movement[3] - self.movement[2]) + self.velocity[1]
+            ((self.velocity[0] > 0) - (self.velocity[0] < 0)) + self.velocity[0],
+            ((self.velocity[1] > 0) - (self.velocity[1] < 0)) + self.velocity[1]
         ]
 
         self.location[0] += transform[0] * delta_time
@@ -64,11 +56,11 @@ class HFGameObject:
                 if transform[0] < 0:
                     rect.left = obj.rect().right
                     self.velocity[0] = 0
-                    collisions[0] = 1
+                    self.collisions[0] = 1
                 if transform[0] > 0:
                     rect.right = obj.rect().left
                     self.velocity[0] = 0
-                    collisions[1] = 1
+                    self.collisions[1] = 1
                 self.location[0] = rect.x
 
         self.location[1] += transform[1] * delta_time
@@ -78,11 +70,11 @@ class HFGameObject:
                 if transform[1] < 0:
                     rect.top = obj.rect().bottom
                     self.velocity[1] = 0
-                    collisions[2] = 1
+                    self.collisions[2] = 1
                 if transform[1] > 0:
                     rect.bottom = obj.rect().top
                     self.velocity[1] = 0
-                    collisions[3] = 1
+                    self.collisions[3] = 1
                 self.location[1] = rect.y
 
         self.velocity = [*map(lambda v: damp_lin(v, self.mass, self.minvelocity, delta_time), self.velocity)]

@@ -383,7 +383,7 @@ class HFRenderer:
         self.draw_circle = lambda center, radius, color, width: pg.draw.circle(
             self.target, color, [*map(int, [center[0] - self.camera.location[0], center[1] - self.camera.location[1]])], radius, width)
         
-        self.blit_rect = lambda rect, color, width: self.draw_rect(rect.size, [rect.topleft[0] - self.camera.location[0], rect.topleft[1] - self.camera.location[1]], color, width)
+        self.blit_rect = lambda rect, color, width: self.draw_rect(rect.size, rect.topleft, color, width)
 
     def set_flag(self, flag: int) -> None:
         """Enables a rendering flag."""
@@ -420,80 +420,35 @@ class HFRenderer:
         self._draw_calls.append([surface, location])
         self.draw_calls += 1
 
-    def renderSW(self) -> None:
-        """
-        Renders objects directly onto the display.
-        
-        Solves the **per-object transformation bottleneck** by applying view transformations 
-        only to the display, making it efficient for **small game worlds**. Since transformations 
-        are applied at the display level, object positions remain true to world coordinates.
-        """
-        self.window.clear()
-        self.target = self.window.display
-
-        # compute scaling factors based on the viewport and window size.
-        display_size = [self.window.display_size[0] * self.camera.viewport_scale[0], self.window.display_size[1] * self.camera.viewport_scale[1]]
-
-        self.pre_render()
-        # render all objects
-        for i in range(self.draw_calls):
-            surface, location = self._draw_calls.pop(0)
-            self.window.blit(surface, [*map(int, location)])
-        self.draw_calls = 0
-
-        # optionally render the camera's viewport for debugging
-        if (self.flags & self.FLAGS.SHOW_CAMERA):
-            self.blit_rect(self.camera.get_viewport(), [255, 255, 255], 1)
-            self.blit_rect(self.camera.get_center([10, 10]), [0, 255, 0], 1)
-
-        self.post_render()
-        # apply camera transformations at the display level (no per-object transformations)
-        self.window.window.blit(
-            pg.transform.scale(self.target, display_size),
-            [-self.camera.location[0] * self.camera.viewport_scale[0], -self.camera.location[1] * self.camera.viewport_scale[1]]
-        )
-
-    def renderLW(self) -> None:
+    def render(self) -> None:
         """
         Renders objects to a viewport-sized surface before scaling it up to the display.
         
         Solves the **display transformation bottleneck** by limiting rendering to objects within 
-        the camera's viewport, making it efficient for **large game worlds**. However, since 
-        transformations are applied per-object within the viewport, their positions are offset 
-        relative to the camera's location.
+        the camera's viewport, making it efficient for **large game worlds**. Since transformations 
+        are applied at the render-target/display level, object positions remain true to world coordinates.
         """
-        self.window.clear()
+        del self.target
         self.target = pg.Surface(self.camera.viewport_size)  # create a surface matching the viewport size.
         self.target.fill(self.window.color)
+        self.window.clear()
 
         self.pre_render()
-        # apply camera transformations on per-object basis (no display transformation)
         for i in range(self.draw_calls):
             surface, location = self._draw_calls.pop(0)
-            self.target.blit(surface, (int(location[0] - self.camera.location[0]), int(location[1] - self.camera.location[1])))
+            self.window.blit(surface, location)
         self.draw_calls = 0
+        self.post_render()
+
+        # apply camera transformations at the render-target level (no per-object transformations)
+        self.target.blit(self.window.display, [-self.camera.location[0], -self.camera.location[1]])
 
         if (self.flags & self.FLAGS.SHOW_CAMERA):
-            viewport_rect = self.camera.get_viewport()
-            viewport_rect.topleft = (viewport_rect.x - self.camera.location[0], viewport_rect.y - self.camera.location[1])
-
-            center_rect = self.camera.get_center([10, 10])
-            center_rect.topleft = (center_rect.x - self.camera.location[0], center_rect.y - self.camera.location[1])
-
-            pg.draw.rect(self.target, [255, 255, 255], viewport_rect, 1)
-            pg.draw.rect(self.target, [0, 255, 0], center_rect, 1)
-
-        self.post_render()
+            self.blit_rect(self.camera.get_viewport(), [255, 255, 255], 1)
+            self.blit_rect(self.camera.get_center([10, 10]), [0, 255, 0], 1)
+        
         self.window.window.blit(
             pg.transform.scale(self.target, self.window.size),
             [0, 0]
-        )
-
-    def flush(self) -> None:
-        """ Flushes the renderer draw call array, dynamically swapping between large-world rendering and small-world rendering based on view scale.
-            - (zoom effects are applied via Camera.mod_viewport() calls which require more of the world to be rendered)
-        """
-        if any(map(lambda s: s >= 0.4, self.camera.viewport_scale)): self.renderLW()
-        else: self.renderSW()
-        self.window.update()
+        ); self.window.update()
 # ------------------------------------------------------------ #
