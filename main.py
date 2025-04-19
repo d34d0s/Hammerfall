@@ -1,5 +1,5 @@
 from globs import hflib, HF_GAME_STATE
-from procs import ConfigureProc, UpdateProc, RenderProc
+from procs import LoadAssetsProc, ConfigureProc, UpdateProc, RenderProc
 
 class THEGAME:
     def __init__(self) -> None:
@@ -21,18 +21,23 @@ class THEGAME:
         self.assets: hflib.HFAssetManager = hflib.HFAssetManager()
         self.events: hflib.HFEventManager = hflib.HFEventManager()
         self.window: hflib.HFWindow = hflib.HFWindow(
-            [800, 600], [800, 600],
+            [800, 600], [1600, 1200],
             [10, 10, 10]
         )
+        self.camera: hflib.HFCamera = hflib.HFCamera(self.window)
+        self.renderer: hflib.HFRenderer = hflib.HFRenderer(self.camera)
 
+        LoadAssetsProc(self).callback(None)
         ConfigureProc(self).callback(None)
 
         self.set_state(HF_GAME_STATE.RUNNING)
 
     def run(self) -> None:
+        update = UpdateProc(self)
+        render = RenderProc(self)
         while self.get_state(HF_GAME_STATE.RUNNING):
-            UpdateProc(self).callback(None)
-            RenderProc(self).callback(None)
+            update.callback(None)
+            render.callback(None)
         else:
             self.exit()
 

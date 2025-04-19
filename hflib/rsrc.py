@@ -1,5 +1,6 @@
 from .globs import re, os, pg, time
 from .obj import HFGameObject
+from .util import damp_lin
 
 # ------------------------------------------------------------ #
 class HFClock:
@@ -63,7 +64,6 @@ class HFWindow:
         self.display.blit(surface, [location[0] - offset[0], location[1] - offset[1]])
 
     def update(self) -> None:
-        self.window.blit(self.display, [0, 0])
         pg.display.flip()
 # ------------------------------------------------------------ #
 
@@ -210,14 +210,14 @@ class HFTilemap:
         return True
 
     def set_data(self, location: list[int], data: int|str) -> None:
-        mapx = (location[0] * self.tilesize) // self.tilesize
-        mapy = (location[1] * self.tilesize) // self.tilesize
+        mapx = location[0] // self.tilesize
+        mapy = location[1] // self.tilesize
         if mapx < 0 or mapy < 0 or mapx > self.size[0] or mapy > self.size[1]: return
         self.data[mapy * self.size[0] + mapx] = data
 
     def get_data(self, location: list[int]) -> int|str|None:
-        mapx = (location[0] * self.tilesize) // self.tilesize
-        mapy = (location[1] * self.tilesize) // self.tilesize
+        mapx = location[0] // self.tilesize
+        mapy = location[1] // self.tilesize
         if mapx < 0 or mapy < 0 or mapx > self.size[0] or mapy > self.size[1]: return None
         return self.data[mapy * self.size[0] + mapx]
 
@@ -227,26 +227,30 @@ class HFTilemap:
                 self.set_data([x, y], data[y * self.size[0] + x])
     
     def get_tile(self, location: list[int]) -> HFGameObject|None:
-        mapx = (location[0] * self.tilesize) // self.tilesize
-        mapy = (location[1] * self.tilesize) // self.tilesize
+        mapx = location[0] // self.tilesize
+        mapy = location[1] // self.tilesize
         if mapx < 0 or mapy < 0 or mapx > self.size[0] or mapy > self.size[1]: return None
         return self.tiles[mapy * self.size[0] + mapx]
 
-    def _generate_region(self, size:list[int], location:list[int]) -> list[list]|None:
-        region = []
-        for x in range(int((location[0] - size[0]) // self.tilesize), int((location[0] + size[0]) // self.tilesize) + 1):
-            for y in range(int((location[1] - size[1]) // self.tilesize), int((location[1] + size[1]) // self.tilesize) + 1):
+    def _generate_region(self, size:list[int], location:list[int]) -> list[list[int]]:
+        center = [
+            int(location[0] // self.tilesize),
+            int(location[1] // self.tilesize)
+        ]; region = []
+        for x in range(center[0] - size[0], (center[0] + size[0]) + 1):
+            for y in range(center[1] - size[1], (center[1] + size[1]) + 1):
                 region.append([x, y])
         return region
 
-    def get_tile_region(self, size:list[int], location:list[int]) -> list[HFGameObject]|None:
+    def get_region(self, size:list[int], location:list[int]) -> list[HFGameObject]|None:
         region = self._generate_region(size, location)
         if not region: return None
         tiles = []
         for map_location in region:
             index = map_location[1] * self.size[0] + map_location[0]
             if index < 0 or index >= (self.size[0] * self.size[1]): continue
-            tiles.append(self.tiles[index])
+            tile = self.tiles[index]
+            if tile: tiles.append(tile)
         return tiles
 
     def load(self) -> None:
@@ -261,4 +265,235 @@ class HFTilemap:
                     )
                     tile.id = data_tile
                     self.tiles[y * self.size[0] + x] = tile
+# ------------------------------------------------------------ #
+
+# ------------------------------------------------------------ #
+class HFCamera:
+    class MODES:
+        CENTER_ON: int = 1
+
+    def __init__(self, window: HFWindow):
+        self.window = window
+        self.mode = 0
+        self.drag = 18
+        self.speed = 100
+        self.location = [0, 0]
+        self.velocity = [0.0, 0.0]
+        self.last_location = self.location
+
+        self.bounds = window.display_size
+        self.viewport_size = window.display_size
+        self.viewport_scale = [
+            self.window.size[0] / self.viewport_size[0],
+            self.window.size[1] / self.viewport_size[1]
+        ]
+        self.center = [self.location[0] + self.viewport_size[0] / 2, self.location[1] + self.viewport_size[1] / 2]
+        self.mod_viewport(-self.viewport_size[0] - self.viewport_size[1])
+
+    def get_center(self, size: list[int]) -> pg.Rect:
+        return pg.Rect([self.center[0] - size[0] / 2, self.center[1] - size[1] / 2], size)
+
+    def get_viewport(self) -> pg.Rect:
+        return pg.Rect(self.location, self.viewport_size)
+
+    def set_velocity(self, vx: float=0.0, vy: float=0.0) -> None:
+        if vx: self.velocity[0] = vx
+        if vy: self.velocity[1] = vy
+
+    def mod_viewport(self, delta: float) -> list[int]:
+        delta *= (min(self.viewport_size) * 0.05)  # scale the delta by 5% of the viewport size
+        aspect_ratio = self.viewport_size[0] / self.viewport_size[1]
+
+        new_width = min(self.bounds[0], max(260, self.viewport_size[0] + delta))
+        new_height = min(self.bounds[1], max(260, self.viewport_size[1] + delta))
+
+        if new_width / new_height != aspect_ratio:
+            if new_width == self.bounds[0]:
+                new_height = new_width / aspect_ratio
+            if new_height == self.bounds[1]:
+                new_width = new_height * aspect_ratio
+
+        self.viewport_size = [new_width, new_height]
+        self.center = [self.location[i] + self.viewport_size[i] / 2 for i in (0, 1)]
+
+        return self.viewport_size
+
+    def center_on(self, size: list[int], location: list[int|float]) -> None:
+        if self.mode != self.MODES.CENTER_ON: self.mode = self.MODES.CENTER_ON
+        target_center = [
+            (location[0] + self.viewport_size[0] / 2) + size[0] / 2,
+            (location[1] + self.viewport_size[1] / 2) + size[1] / 2
+        ]
+
+        dist = [
+            (self.center[0] - target_center[0]) + self.viewport_size[0] / 2,
+            (self.center[1] - target_center[1]) + self.viewport_size[1] / 2
+        ]
+    
+        self.velocity = [
+            (-dist[0] * self.speed) * (1 / self.drag),
+            (-dist[1] * self.speed) * (1 / self.drag)
+        ]
+
+    def update(self, delta_time: float) -> None:
+        self.viewport_scale = [
+            self.window.size[0] / self.viewport_size[0],
+            self.window.size[1] / self.viewport_size[1]
+        ]
+        self.last_location = self.location
+        self.velocity = [damp_lin(v, self.speed, 3, delta_time) for v in self.velocity]
+        self.location[0] = max(0, min(self.bounds[0] - self.viewport_size[0], self.location[0] + self.velocity[0] * delta_time))
+        self.location[1] = max(0, min(self.bounds[1] - self.viewport_size[1], self.location[1] + self.velocity[1] * delta_time))
+        self.center = [self.location[0] + self.viewport_size[0] / 2, self.location[1] + self.viewport_size[1] / 2]
+# ------------------------------------------------------------ #
+
+# ------------------------------------------------------------ #
+class HFRenderer:
+    """
+    Handles rendering of objects to the display, with support for different rendering strategies 
+    optimized for small and large game worlds.
+    """
+    
+    class FLAGS:
+        SHOW_CAMERA: int = 1 << 0  # flag to display the camera's viewport boundaries.
+
+    def __init__(self, camera: HFCamera) -> None:
+        """
+        Initializes the renderer with a target window and camera.
+
+        :param window: The game window where rendering occurs.
+        :param camera: The camera that defines the viewport.
+        """
+        self.camera = camera
+        self.window = camera.window
+        self.target = self.window.display
+        self.flags = 0
+        self.draw_calls = 0
+        self._draw_calls = []  # draw_call layout : [surface, location]
+
+        self.draw_line = lambda start, end, color, width: pg.draw.line(
+            self.target, color,
+            [start[0] - self.camera.location[0], start[1] - self.camera.location[1]],
+            [end[0] - self.camera.location[0], end[1] - self.camera.location[1]], width=width
+        )
+
+        self.draw_rect = lambda size, location, color, width: pg.draw.rect(self.target, color, pg.Rect(
+            [location[0] - self.camera.location[0], location[1] - self.camera.last_location[1]], size), width=width)
+        
+        self.draw_circle = lambda center, radius, color, width: pg.draw.circle(
+            self.target, color, [*map(int, [center[0] - self.camera.location[0], center[1] - self.camera.location[1]])], radius, width)
+        
+        self.blit_rect = lambda rect, color, width: self.draw_rect(rect.size, [rect.topleft[0] - self.camera.location[0], rect.topleft[1] - self.camera.location[1]], color, width)
+
+    def set_flag(self, flag: int) -> None:
+        """Enables a rendering flag."""
+        self.flags |= flag
+
+    def rem_flag(self, flag: int) -> None:
+        """Disables a rendering flag."""
+        if (self.flags & flag) == flag:
+            self.flags &= ~flag
+
+    def pre_render(self) -> None: pass
+    
+    def post_render(self) -> None: pass
+
+    def draw_call(self, surface: pg.Surface, location: list[int]) -> None:
+        """
+        Queues a draw call for rendering.
+
+        :param surface: The image/surface to render.
+        :param location: The world-space position of the surface.
+        
+        Performs frustum culling to avoid rendering objects outside of the viewport.
+        """
+        if self.draw_calls + 1 > 4096:  # prevent excessive draw calls.
+            return
+
+        # frustum culling
+        if ((location[0] + surface.size[0]) - self.window.clip_range[0] < self.camera.location[0] or 
+            location[0] + self.window.clip_range[0] > self.camera.location[0] + self.camera.viewport_size[0]) or \
+           ((location[1] + surface.size[1]) - self.window.clip_range[1] < self.camera.location[1] or 
+            location[1] + self.window.clip_range[1] > self.camera.location[1] + self.camera.viewport_size[1]):
+            return
+
+        self._draw_calls.append([surface, location])
+        self.draw_calls += 1
+
+    def renderSW(self) -> None:
+        """
+        Renders objects directly onto the display.
+        
+        Solves the **per-object transformation bottleneck** by applying view transformations 
+        only to the display, making it efficient for **small game worlds**. Since transformations 
+        are applied at the display level, object positions remain true to world coordinates.
+        """
+        self.window.clear()
+        self.target = self.window.display
+
+        # compute scaling factors based on the viewport and window size.
+        display_size = [self.window.display_size[0] * self.camera.viewport_scale[0], self.window.display_size[1] * self.camera.viewport_scale[1]]
+
+        self.pre_render()
+        # render all objects
+        for i in range(self.draw_calls):
+            surface, location = self._draw_calls.pop(0)
+            self.window.blit(surface, [*map(int, location)])
+        self.draw_calls = 0
+
+        # optionally render the camera's viewport for debugging
+        if (self.flags & self.FLAGS.SHOW_CAMERA):
+            self.blit_rect(self.camera.get_viewport(), [255, 255, 255], 1)
+            self.blit_rect(self.camera.get_center([10, 10]), [0, 255, 0], 1)
+
+        self.post_render()
+        # apply camera transformations at the display level (no per-object transformations)
+        self.window.window.blit(
+            pg.transform.scale(self.target, display_size),
+            [-self.camera.location[0] * self.camera.viewport_scale[0], -self.camera.location[1] * self.camera.viewport_scale[1]]
+        )
+
+    def renderLW(self) -> None:
+        """
+        Renders objects to a viewport-sized surface before scaling it up to the display.
+        
+        Solves the **display transformation bottleneck** by limiting rendering to objects within 
+        the camera's viewport, making it efficient for **large game worlds**. However, since 
+        transformations are applied per-object within the viewport, their positions are offset 
+        relative to the camera's location.
+        """
+        self.window.clear()
+        self.target = pg.Surface(self.camera.viewport_size)  # create a surface matching the viewport size.
+        self.target.fill(self.window.color)
+
+        self.pre_render()
+        # apply camera transformations on per-object basis (no display transformation)
+        for i in range(self.draw_calls):
+            surface, location = self._draw_calls.pop(0)
+            self.target.blit(surface, (int(location[0] - self.camera.location[0]), int(location[1] - self.camera.location[1])))
+        self.draw_calls = 0
+
+        if (self.flags & self.FLAGS.SHOW_CAMERA):
+            viewport_rect = self.camera.get_viewport()
+            viewport_rect.topleft = (viewport_rect.x - self.camera.location[0], viewport_rect.y - self.camera.location[1])
+
+            center_rect = self.camera.get_center([10, 10])
+            center_rect.topleft = (center_rect.x - self.camera.location[0], center_rect.y - self.camera.location[1])
+
+            pg.draw.rect(self.target, [255, 255, 255], viewport_rect, 1)
+            pg.draw.rect(self.target, [0, 255, 0], center_rect, 1)
+
+        self.post_render()
+        self.window.window.blit(
+            pg.transform.scale(self.target, self.window.size),
+            [0, 0]
+        )
+
+    def flush(self) -> None:
+        """ Flushes the renderer draw call array, dynamically swapping between large-world rendering and small-world rendering based on view scale.
+            - (zoom effects are applied via Camera.mod_viewport() calls which require more of the world to be rendered)
+        """
+        if any(map(lambda s: s >= 0.4, self.camera.viewport_scale)): self.renderLW()
+        else: self.renderSW()
+        self.window.update()
 # ------------------------------------------------------------ #

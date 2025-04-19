@@ -1,5 +1,13 @@
 from globs import hflib, HF_GAME_STATE
 
+class LoadAssetsProc(hflib.HFProc):
+    def __init__(self, game) -> None:
+        super().__init__(0, "render")
+        self.game = game
+    
+    def callback(self, data):
+        self.game.assets.load_image("burber", "assets\\images\\burber.png", [32, 32])
+
 class ConfigureProc(hflib.HFProc):
     def __init__(self, game) -> None:
         super().__init__(0, "configure")
@@ -7,8 +15,12 @@ class ConfigureProc(hflib.HFProc):
 
     def callback(self, data):
         self.game.player = hflib.HFGameObject(
-            size=[16, 16], color=[255, 255, 255]
+            size=[32, 32], color=[255, 255, 255],
+            location=[64, 64], mass=500
         )
+
+        self.game.player._image = self.game.assets.get_image("burber")
+        self.game.player.image = self.game.player._image
 
         self.game.map = hflib.HFTilemap([10, 10], 32)
         self.game.map.import_data("hfmap.txt")
@@ -35,7 +47,7 @@ class UpdateProc(hflib.HFProc):
     def callback(self, data) -> None:
         self.game.clock.update()
         self.game.events.update()
-        self.game.window.clear()
+        # self.game.window.clear()
 
         if self.game.events.key_pressed(hflib.HFKeyboard.Escape):
             self.game.rem_state(HF_GAME_STATE.RUNNING)
@@ -58,14 +70,13 @@ class UpdateProc(hflib.HFProc):
             self.game.player.set_velocity(vy=100)
         else: self.game.player.stop(3)
 
-        if self.game.events.mouse_pressed(hflib.HFMouse.LeftClick):
-            region = self.game.map.get_tile_region([1, 1], hflib.HFMouse.get_location())
-            for tile in region:
-                if not tile: continue
-                tile.set_color([255, 0, 0])
+        if self.game.events.mouse_wheel_up: self.game.camera.mod_viewport(-2)
+        if self.game.events.mouse_wheel_down: self.game.camera.mod_viewport(2)
 
-        self.game.player.update(self.game.clock.delta)
+        self.game.player.update(self.game.map.get_region([1, 1], self.game.player.center()), self.game.clock.delta)
 
+        self.game.camera.center_on(self.game.player.size, self.game.player.location)
+        self.game.camera.update(self.game.clock.delta)
         self.game.clock.rest()
         return True
 
@@ -74,9 +85,11 @@ class RenderProc(hflib.HFProc):
         super().__init__(0, "render")
         self.game = game
 
+        def post_render():
+            [self.game.renderer.draw_rect(t.size, t.location, [255, 0, 0], 1)
+            for t in self.game.map.get_region([1, 1], self.game.player.center())]
+        self.game.renderer.post_render = post_render
+
     def callback(self, data):
-        for t in self.game.map.tiles:
-            if not t: continue
-            t.render(self.game.window)
-        self.game.player.render(self.game.window)
-        self.game.window.update()
+        [self.game.renderer.draw_call(obj.image, obj.location) for obj in [self.game.player, *self.game.map.tiles] if obj]
+        self.game.renderer.flush()
